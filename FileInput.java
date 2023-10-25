@@ -6,16 +6,16 @@ import java.util.List;
 /*
  * Class for handling inputting from file and parsing the file's contents into a custom datatype "Instruction"
  */
-public class FileIO {
+public class FileInput {
 
     private String fileName;
     private List<Instruction> parsedInstructions;
 
-    FileIO() {
+    FileInput() {
         parsedInstructions = new LinkedList<Instruction>();
     }
 
-    FileIO(String fileName) {
+    FileInput(String fileName) {
         this.fileName = fileName;
         parsedInstructions = new LinkedList<Instruction>();
     }
