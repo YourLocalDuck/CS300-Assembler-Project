@@ -4,6 +4,7 @@ public class Main {
     
     public static void main(String[] args) {
 	//pass 1
+	Table SYMTAB = new Table();
 	int LOCCTR = 0;
 	OPTABHashTable OPTAB = new OPTABHashTable();
         String fileName = "basic";
@@ -11,6 +12,16 @@ public class Main {
         List<Instruction> basicInstructions = fileParser.getParsedInstructions();
         for (int i = 0; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
+		String label = instruction.getLabel();
+		if (!(label.equals(""))) {
+			String hexLoc = convertToHex(LOCCTR, 4);
+			String[] labelValues = {hexLoc};
+			boolean canAdd = SYMTAB.addEntry(label, labelValues);
+			if (!canAdd) {
+				System.out.println("ERROR: Duplicate symbol '" + label + "'");
+				System.exit(0);
+			}
+		}
 		String opcode = OPTAB.findOperation(instruction.getMnemonic());
 		if (opcode != "") {
 			String hexLoc = convertToHex(LOCCTR, 4);
@@ -43,6 +54,8 @@ public class Main {
 		}
 
 	}
+	
+	SYMTAB.printTable();
 
 	FileOutput writer = new FileOutput("test.txt");
 	writer.writeIntermediateFile(basicInstructions);
