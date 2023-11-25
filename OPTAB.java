@@ -49,19 +49,20 @@ class OPTABHashTable
 {
 
 	//Define Hashtable
-	Hashtable<String, String> OPTAB;
+	Hashtable<String, String[]> OPTAB;
 	
 	//Define Scanner
 	Scanner myScanner = new Scanner(System.in);
 	
 	public OPTABHashTable(){
-		this.OPTAB = new Hashtable<String, String>();
+		this.OPTAB = new Hashtable<String, String[]>();
 		try {
 			BufferedReader reader = new BufferedReader(new FileReader("opcodes.txt"));
 			String line;
 			while ((line = reader.readLine()) != null){
-				String opString[] = line.split(","); 
-				addOperation(opString[0], opString[1]);
+				String opString[] = line.split(",");
+			       	String data[] = {opString[1], opString[2]};	
+				addOperation(opString[0], data);
 			}
 		} catch (IOException e) {
 			System.out.println("error reading opcodes.txt");
@@ -69,7 +70,7 @@ class OPTABHashTable
 	}
 
 	//Add a Mnenomic Operation
-	void addOperation(String mnemonicOperation, String mnemonicMachineCode)
+	void addOperation(String mnemonicOperation, String[] data)
 	{
 		/*
 		//Ask the user for input
@@ -79,36 +80,31 @@ class OPTABHashTable
 		int mnemonicMachineCode = Integer.parseInt(myScanner.nextLine());
 		*/
 		//Insert the value into the hash table
-		OPTAB.put(mnemonicOperation, mnemonicMachineCode);
+		OPTAB.put(mnemonicOperation, data);
 	}
 	
 	//Find a Mnenomic Operation 
-	String findOperation(String mnemonicOperation)
+	String[] findOperation(String mnemonicOperation)
 	{
 		//Get User Input
 		//System.out.println("Enter the Mnemonic operation you wish to find");//Get Replaced?
 		//String mnemonicOperation = myScanner.nextLine();
 		//Find the input
 	
-		String machineCode = "";
-		machineCode = OPTAB.get(mnemonicOperation);
+		String[] data = OPTAB.get(mnemonicOperation);
+		return data;
 		
-		if(machineCode != null)
-		{
-			/*System.out.println("Code was found");
-			System.out.println("\n" + "Mnemonic Opeartion: " + mnemonicOperation + "\n" +  "Machine Code: " + machineCode);*/
-			return machineCode;
-		}
-		else
-		{
-			//System.out.println("No code was found");
-			return "";
-		}
 	}
 	
 	void viewData()
 	{
-		System.out.println(OPTAB.toString());
+		OPTAB.forEach((k, v) -> {
+			System.out.print(k + ": ");
+			for (int i = 0; i < v.length; i++) {
+				System.out.println(v[i] + ", ");
+			}
+		});
+		System.out.println();
 	}	
 }
 

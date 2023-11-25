@@ -4,10 +4,13 @@
 public class CodeAssembly {
 
 
-	public static void main(String[] args){
+/*	public static void main(String[] args){
 		CodeAssembly ass = new CodeAssembly();
+		String hexCode = "0036";
+		int operandAddr = Integer.parseInt(hexCode, 16);
+		System.out.println(ass.toMachineCode("54", operandAddr, 3, "", true, 0x1051, 0x0033));
 		System.out.println(ass.toMachineCode("54", 0x0036, 3, "", true, 0x1051, 0x0033));
-	}
+	}*/
 	
 	//Function that generates object code for a line of assembly.
 	//Specify the OPCODE as a string, the operand address (IN HEX!!!!),

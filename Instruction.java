@@ -27,7 +27,7 @@ public class Instruction {
 		return this.operands;
 	}
 
-	public void setObjCode() {
+	public void setObjCode(String objCode) {
 		this.objCode = objCode;
 	}
 	public String getObjCode() {
