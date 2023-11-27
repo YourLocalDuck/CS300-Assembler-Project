@@ -74,15 +74,38 @@ public class Main {
 		System.out.println("error reading registers.txt");
 	}
 
+	
+
 	//SYMTAB.printTable();
 
-	FileOutput writer = new FileOutput("test.txt");
+	FileOutput writer = new FileOutput(fileName +"Intr.txt");
 	writer.writeIntermediateFile(basicInstructions, 1);
 
 	//pass 2
+	String hRec = "H";
+	String eRec = "E";
+	String tRec = "T";
+	List<String> tRecords = new LinkedList<String>();	
 	basicInstructions = fileParser.getParsedInstructions(2);
 	int base = 0;
 	int pc = 0;
+	Instruction startInstruction = basicInstructions.get(0);
+	String startOpCode = startInstruction.getMnemonic();
+	if (startOpCode.equals("START")) {
+		int startLoc = Integer.parseInt(startInstruction.getLoc(), 16);
+		int progLen = LOCCTR - startLoc;
+		hRec += startInstruction.getLabel();
+		hRec += startInstruction.getLoc();
+		String progLenHex = convertToHex(progLen, 6);
+		hRec += progLenHex;
+	}
+	else {
+		hRec += "000000";
+		hRec += convertToHex(LOCCTR, 6);
+	}
+	boolean foundFirstExecLine = false;
+	boolean endReached = false;
+	String firstExecLine = "";
 	for (int i = 0; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		if (i + 1 < basicInstructions.size()){
@@ -91,11 +114,11 @@ public class Main {
 		else pc = LOCCTR;
 		String opcode = instruction.getMnemonic();
 
-		if (opcode.equals("START")) {
-			System.out.println("START");
-		}
-		else if (opcode.equals("END")) {
-			System.out.println("END");
+		if (opcode.equals("END")) {
+			tRecords.add(tRec);
+			eRec += firstExecLine;
+			i = basicInstructions.size();
+			endReached = true;
 		}
 
 		else if (opcode.equals("BYTE") || opcode.equals("WORD")) {
@@ -168,17 +191,31 @@ public class Main {
 			}
 			String objCode = toMachineCode(opcode, operandAddr[0], operandAddr[1], format, mode, isIndexed, isConstant, pc, base);	
 			instruction.setObjCode(objCode);
-			//append to T Record	
+
+			if (!foundFirstExecLine) {
+				int firstExecLineLoc = Integer.parseInt(instruction.getLoc(), 16);
+				firstExecLine = convertToHex(firstExecLineLoc, 6);
+				foundFirstExecLine = true;
+			}
+			if (tRec.length() + objCode.length() > 69){
+				tRecords.add(tRec);
+				tRec = "T";	
+			}
+			else tRec += objCode;
 		}
 	}
-	
+	tRecords.add(tRec);
+	if (!endReached) {
+		eRec += firstExecLine;
+	}
 	writer.writeIntermediateFile(basicInstructions, 2);
-        /*ObjectProgram output = new ObjectProgram();
-        output.Head = "testHead";
-        output.Text = "testText";
-        output.End = "testEnd";
-        FileOutput printer = new FileOutput(fileName+".o");
-        printer.writeFile(output);*/
+
+        ObjectProgram output = new ObjectProgram();
+        output.Head = hRec;
+        output.Text = tRecords;
+        output.End = eRec;
+        FileOutput printer = new FileOutput(fileName+"Obj.txt");
+        printer.writeObjectFile(output);
     }
 
 	//Function that generates object code for a line of assembly.
@@ -317,7 +354,6 @@ public class Main {
 						int machineCodeInt = Integer.valueOf(machineCode, 2);
 						machineCode = convertToHex(machineCodeInt, 3);
 						String hexDisp = convertToHex(disp, 3);
-						System.out.println(hexDisp);
 						machineCode += hexDisp;
 						return machineCode;
 					}

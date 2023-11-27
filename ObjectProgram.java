@@ -1,5 +1,6 @@
+import java.util.*;
 public class ObjectProgram {
     String Head;
-    String Text;
+    List<String> Text;
     String End;
 }

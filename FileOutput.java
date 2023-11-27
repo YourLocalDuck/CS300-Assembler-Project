@@ -19,7 +19,7 @@ public class FileOutput {
 
     //writes to the intermediate file. Specify pass 1 or pass 2 of assembly as second argument.
     void writeIntermediateFile(List<Instruction> instructionList, int pass) {
-	try(BufferedWriter writer = new BufferedWriter(new FileWriter("Intr" + this.fileName))) {
+	try(BufferedWriter writer = new BufferedWriter(new FileWriter(this.fileName))) {
 		if (pass == 1) {
 			for (int i = 0; i < instructionList.size(); i++) {
 				Instruction instruction = instructionList.get(i);
@@ -55,8 +55,10 @@ public class FileOutput {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(this.fileName))) {
             writer.write(output.Head);
             writer.newLine();
-            writer.write(output.Text);
-            writer.newLine();
+	    for (int i = 0; i < output.Text.size(); i++){
+         	   writer.write(output.Text.get(i));
+           	   writer.newLine();
+	    }
             writer.write(output.End);
             writer.newLine();
         } catch (IOException e) {
