@@ -8,19 +8,23 @@ public class Main {
 	Table SYMTAB = new Table();
 	int LOCCTR = 0;
 	OPTABHashTable OPTAB = new OPTABHashTable();
+
         String fileName = "basic";
         FileInput fileParser = new FileInput(fileName+".txt");
         List<Instruction> basicInstructions = fileParser.getParsedInstructions(1);
+
         for (int i = 0; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		String opcode = instruction.getMnemonic();
 		if (opcode.charAt(0) == '+') {
 			opcode = opcode.substring(1);
 		}
+
 		String[] opVal = OPTAB.findOperation(instruction.getMnemonic());
 		String hexLoc = convertToHex(LOCCTR, 4);
 		basicInstructions.get(i).setLoc(hexLoc);
 		String label = instruction.getLabel();
+
 		if (!(label.equals(""))) {
 			String[] labelValues = {hexLoc};
 			boolean canAdd = SYMTAB.addEntry(label, labelValues);
@@ -29,6 +33,7 @@ public class Main {
 				System.exit(0);
 			}
 		}
+
 		if (opVal != null) {
 			LOCCTR += 3;
 		}
@@ -55,6 +60,8 @@ public class Main {
 			}
 		}
 	}
+
+	//read in register data
 	try {
 		BufferedReader reader = new BufferedReader(new FileReader("registers.txt"));
 		String line;
@@ -67,7 +74,8 @@ public class Main {
 		System.out.println("error reading registers.txt");
 	}
 
-	SYMTAB.printTable();
+	//SYMTAB.printTable();
+
 	FileOutput writer = new FileOutput("test.txt");
 	writer.writeIntermediateFile(basicInstructions, 1);
 
@@ -78,26 +86,33 @@ public class Main {
 	for (int i = 0; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		if (i + 1 < basicInstructions.size()){
-			pc = Integer.parseInt(basicInstructions.get(i).getLoc(), 16);
+			pc = Integer.parseInt(basicInstructions.get(i+1).getLoc(), 16);
 		}
 		else pc = LOCCTR;
 		String opcode = instruction.getMnemonic();
+
 		if (opcode.equals("START")) {
 			System.out.println("START");
 		}
 		else if (opcode.equals("END")) {
 			System.out.println("END");
 		}
+
 		else if (opcode.equals("BYTE") || opcode.equals("WORD")) {
 			System.out.println("BW");
 		}
+		
+		//check for format 4, remove '+' if exists
 		int format = 3;
 		if (opcode.charAt(0) == '+') {
 			opcode = opcode.substring(1);
 			format = 4;
 		}
 		String[] opVal = OPTAB.findOperation(opcode);
+
+		//generate instruction for given opcode
 		if (opVal != null) {
+			//get format, check for multiple operands
 			opcode = opVal[0];
 			if (format != 4) {
 				format = Integer.parseInt(opVal[1]);
@@ -117,40 +132,41 @@ public class Main {
 			if (!(operands[0].equals(""))) {
 				mode = Character.toString(operands[0].charAt(0));
 			}
-			if ((!(mode.equals("+") || mode.equals("#") || mode.equals("@")))) {
+			if ((!(mode.equals("#") || mode.equals("@")))) {
 				mode = "";
 			}
+			else {
+				operands[0] = operands[0].substring(1);
+			}
+
+			//get operand addresses
+			boolean isConstant = false;
 			for (int j = 0; j < operands.length; j++){
 				if ((!(operands[j].equals("")))) {
-					boolean isSymbol = true;
-					if (mode.equals("#")) {
-						isSymbol = false;
-						String value = operands[j].substring(1);
-						operandAddr[j] = Integer.parseInt(value);
+					String[] values = SYMTAB.getEntry(operands[j]);
+					if (values != null) {
+						String operandAddrStr = values[0];
+						operandAddr[j] = Integer.parseInt(operandAddrStr, 16);
 					}
-					if (operands[j].charAt(0) == '@') {
-						operands[j] = operands[j].substring(1);
-					}	
-					if (isSymbol) {
-						String[] values = SYMTAB.getEntry(operands[j]);
-						if (values != null) {
-							String operandAddrStr = values[0];
+					else {
+						try {
+							String operandAddrStr = operands[j];
 							operandAddr[j] = Integer.parseInt(operandAddrStr, 16);
-						}
-						else {
+							isConstant = true;
+						} catch (NumberFormatException e) {
 							System.out.println("ERROR: Undefined Symbol '" + operands[j] + "'");
 							System.exit(0);
 						}
 					}
 				}
 			}
+			
+			//check for indexed addressing
 			boolean isIndexed = false;
-			if (!(mode.equals(""))) {
-				if (opVal[1].equals("X")) {
-					isIndexed = true;
-				}
+			if (operands[1].equals("X")) {
+				isIndexed = true;
 			}
-			String objCode = toMachineCode(opcode, operandAddr[0], operandAddr[1], format, mode, isIndexed, pc, base);	
+			String objCode = toMachineCode(opcode, operandAddr[0], operandAddr[1], format, mode, isIndexed, isConstant, pc, base);	
 			instruction.setObjCode(objCode);
 			//append to T Record	
 		}
@@ -170,7 +186,7 @@ public class Main {
 	//the format type (1-4), the addressing mode ("#" for immediate, "@" for indirect, anything else for simple),
 	//whether or not index register is used (true for yes, false for no), the PC counter value (ALSO HEX), 
 	//and the base register value (ALSO HEX). Will return a hex string with the object code.
-	public static String toMachineCode(String OPCODE, int operandAddr1, int operandAddr2, int format, String mode, boolean isIndexed, int PC, int BASE) {
+	public static String toMachineCode(String OPCODE, int operandAddr1, int operandAddr2, int format, String mode, boolean isIndexed, boolean isConstant, int PC, int BASE) {
 		//add first four bits of OPCODE to machineCode string
 		String machineCode = "";
 		String opBitOneChar = Character.toString(OPCODE.charAt(0));
@@ -183,8 +199,8 @@ public class Main {
 			int opBitTwoInt = Integer.parseInt(opBitTwoChar, 16);
 			String opBitTwoBinary = convertToBinary(opBitTwoInt, 4);
 			machineCode += opBitTwoBinary;
-			int machineCodeInt = Integer.parseInt(machineCode);
-			machineCode = Integer.toHexString(machineCodeInt);
+			int machineCodeInt = Integer.parseInt(machineCode, 2);
+			machineCode = convertToHex(machineCodeInt, 2);
 			return machineCode;
 		}	
 		//if format 2, add next 4 bits in OPCODE, add operandAddr
@@ -201,7 +217,7 @@ public class Main {
 			machineCode += operandAddrBinary;
 
 			int machineCodeInt = Integer.parseInt(machineCode, 2);
-			machineCode = Integer.toHexString(machineCodeInt);
+			machineCode = convertToHex(machineCodeInt, 4);
 
 			return machineCode;
 		}
@@ -230,24 +246,32 @@ public class Main {
 				String operandAddrBinary = convertToBinary(operandAddr1, 20);
 				machineCode += operandAddrBinary;
 	
-				int machineCodeInt = Integer.parseInt(machineCode);
-				machineCode = Integer.toHexString(machineCodeInt);
+				int machineCodeInt = Integer.parseInt(machineCode, 2);
+				machineCode = convertToHex(machineCodeInt, 8);
+				return machineCode;
+			}
+			//if 1st operand is a constant, just use disp
+			else if (isConstant) {
+				if (isIndexed) {
+					machineCode += "1000";
+				}
+				else {
+					machineCode += "0000";
+				}
+				String operandAddrBinary = convertToBinary(operandAddr1, 12);
+				machineCode += operandAddrBinary;
+
+				int machineCodeInt = Integer.parseInt(machineCode, 2);
+				machineCode = convertToHex(machineCodeInt, 6);
 				return machineCode;
 			}	
 			//if format 3 instruction, use relative addressing
 			else {
 				//PC relative
 				int disp = operandAddr1 - PC;
-				//if negative number, do twos comp
-				if (disp < 0){
-					disp = twosComp(disp);
-				}
 				//if disp is greater than 12 bits, use base relative
 				if (disp >= 2048) {
 					disp = operandAddr1 - BASE;
-					if (disp < 0){
-						disp = twosComp(disp);
-					}
 					//if disp still greater than 12 bits, throw error, quit assembly
 					if (disp >= 2048) {
 						System.out.println("Error: Target Address outside 12 bit limit.");
@@ -258,28 +282,52 @@ public class Main {
 						//if using index reg, set x and b bits to 1, else just b to 1
 						if (isIndexed) {
 							machineCode += "1100";
+							disp += operandAddr2;
 						}
 						else machineCode += "0100";
-						String dispBinary = convertToBinary(disp, 12);
-						machineCode += dispBinary;
-	
-						int machineCodeInt = Integer.valueOf(machineCode, 2);
-						machineCode = Integer.toHexString(machineCodeInt);
-						return machineCode;
+
+
+						if (disp < 0){
+							disp = twosComp(disp);
+							int machineCodeInt = Integer.valueOf(machineCode, 2);
+							machineCode = convertToHex(machineCodeInt, 3);
+							String hexDisp = convertToHex(disp, 3);
+							machineCode += hexDisp;
+							return machineCode;
+						}
+						else {
+							String dispBinary = convertToBinary(disp, 12);
+							machineCode += dispBinary;
+							int machineCodeInt = Integer.valueOf(machineCode, 2);
+							machineCode = convertToHex(machineCodeInt, 6);
+							return machineCode;
+						}
 					}
 				}
 				else {
 					//if using index reg, set x and p bits to 1, else just p to 1
 					if (isIndexed){
 						machineCode += "1010";
+						disp += operandAddr2;
 					}
 					else machineCode += "0010";
-					String dispBinary = convertToBinary(disp, 12);
-					machineCode += dispBinary;
-	
-					int machineCodeInt = Integer.valueOf(machineCode, 2);
-					machineCode = Integer.toHexString(machineCodeInt);
-					return machineCode;
+					//if negative number, do twos comp
+					if (disp < 0){
+						disp = twosComp(disp);
+						int machineCodeInt = Integer.valueOf(machineCode, 2);
+						machineCode = convertToHex(machineCodeInt, 3);
+						String hexDisp = convertToHex(disp, 3);
+						System.out.println(hexDisp);
+						machineCode += hexDisp;
+						return machineCode;
+					}
+					else {
+						String dispBinary = convertToBinary(disp, 12);
+						machineCode += dispBinary;
+						int machineCodeInt = Integer.valueOf(machineCode, 2);
+						machineCode = convertToHex(machineCodeInt, 6);
+						return machineCode;
+					}
 				}
 			}
 		}
@@ -367,6 +415,10 @@ public class Main {
 			}
 			padding += hexNumber;
 			return padding;
+		}
+		else if (hexNumber.length() > length) {
+			hexNumber = hexNumber.substring(hexNumber.length() - length);
+			return hexNumber;
 		}
 		else return hexNumber;
 
