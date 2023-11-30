@@ -59,6 +59,10 @@ public class FileOutput {
          	   writer.write(output.Text.get(i));
            	   writer.newLine();
 	    }
+	    for (int i = 0; i < output.Mod.size(); i++) {
+		    writer.write(output.Mod.get(i));
+		    writer.newLine();
+	    }
             writer.write(output.End);
             writer.newLine();
         } catch (IOException e) {

@@ -4,14 +4,16 @@
 public class CodeAssembly {
 
 
-/*	public static void main(String[] args){
+	public static void main(String[] args){
 		CodeAssembly ass = new CodeAssembly();
 		String hexCode = "0036";
 		int operandAddr = Integer.parseInt(hexCode, 16);
-		System.out.println(ass.toMachineCode("54", operandAddr, 3, "", true, 0x1051, 0x0033));
-		System.out.println(ass.toMachineCode("54", 0x0036, 3, "", true, 0x1051, 0x0033));
-	}*/
-	
+		System.out.println(ass.toMachineCodeConst("X'05'"));
+		System.out.println(ass.toMachineCodeConst("C'EOF'"));
+		//System.out.println(ass.toMachineCode("54", operandAddr, 3, "", true, 0x1051, 0x0033));
+		//System.out.println(ass.toMachineCode("54", 0x0036, 3, "", true, 0x1051, 0x0033));
+	}
+
 	//Function that generates object code for a line of assembly.
 	//Specify the OPCODE as a string, the operand address (IN HEX!!!!),
 	//the format type (1-4), the addressing mode ("#" for immediate, "@" for indirect, anything else for simple),
@@ -128,9 +130,27 @@ public class CodeAssembly {
 		}
 	}//end toMachineCode
 
-//	public String toMachineCodeConst(String operand){
-//
-//	}
+	public String toMachineCodeConst(String operand) {
+		char constType = operand.charAt(0);
+		if (constType == 'C') {
+			String operandVal = operand.substring(2, operand.length() - 1);
+			String objCode = "";
+			for (int i = 0; i < operandVal.length(); i++) {
+				int charVal = (int)operandVal.charAt(i);
+				objCode += convertToHex(charVal, 2);
+			}
+			return objCode;		
+		}
+		else if (constType == 'X') {
+			return operand.substring(2, operand.length() - 1);
+		}
+		else {
+			System.out.println("ERROR: Invalid constant def '" + operand + "'");
+			System.exit(0);
+			return "";
+		}
+	}
+
 
 	//Function to convert a decimal integer to a binary string. Specify a length for how many digits 
 	//to include.
@@ -169,4 +189,58 @@ public class CodeAssembly {
 		int twosCompInt = Integer.valueOf(binaryString, 2);
 		return twosCompInt;
 	}//end twosComp
+
+	static String convertToHex(int convertNum, int length) {
+		int quotient = convertNum;
+	    	int remainder = convertNum;
+	    	String reverseHexNumber = "";
+		while (quotient != 0) {
+			remainder = quotient % 16;
+			quotient = quotient / 16;
+			if (remainder >= 10 && remainder <= 15){
+				switch (remainder) {
+					case 10:
+					       reverseHexNumber += "A";
+					       break;
+					case 11:
+					       reverseHexNumber += "B";
+					       break;
+					case 12:
+					       reverseHexNumber += "C";
+					       break;
+					case 13:
+					       reverseHexNumber += "D";
+					       break;
+					case 14:
+					       reverseHexNumber += "E";
+					       break;
+					case 15:
+					       reverseHexNumber += "F";
+					       break;
+				}
+			}
+			else reverseHexNumber += Integer.toString(remainder);
+		}
+		String hexNumber = "";
+		for (int i = reverseHexNumber.length() - 1; i >= 0; i--){
+			hexNumber += reverseHexNumber.charAt(i);
+		}
+		if (hexNumber.length() < length) {
+			String padding = "";
+			int i = hexNumber.length();
+			while (i < length){
+				padding += "0";
+				i++;
+			}
+			padding += hexNumber;
+			return padding;
+		}
+		else if (hexNumber.length() > length) {
+			hexNumber = hexNumber.substring(hexNumber.length() - length);
+			return hexNumber;
+		}
+		else return hexNumber;
+
+    }
+
 }
