@@ -1,62 +1,10 @@
 import java.util.*;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.io.*;
 import java.util.Scanner; //Import the scanner class to read input
 
-
-class OPTABHashTable
-{
-
-	//Define Hashtable
-	Hashtable<String, Integer> OPTAB = new Hashtable<>();
-	
-	//Define Scanner
-	Scanner myScanner = new Scanner(System.in);
-	
-	//Add a Mnenomic Operation
-	void addOperation()
-	{
-		//Ask the user for input
-		System.out.println("Enter the Mnemonic Operation you wish to add");//Get Replaced?
-		String mnemonicOperation = myScanner.nextLine();
-		System.out.println("Enter the machine code related to the mnemonic operation");//Get Replaced?
-		int mnemonicMachineCode = Integer.parseInt(myScanner.nextLine());
-		
-		//Insert the value into the hash table
-		OPTAB.put(mnemonicOperation, mnemonicMachineCode);
-	}
-	
-	//Find a Mnenomic Operation 
-	void findOperation()
-	{
-		//Get User Input
-		System.out.println("Enter the Mnemonic operation you wish to find");//Get Replaced?
-		String mnemonicOperation = myScanner.nextLine();
-		//Find the input
-	
-		int machineCode = -1;
-		machineCode = OPTAB.get(mnemonicOperation);
-		
-		if(machineCode != -1)
-		{
-			System.out.println("Code was found");
-			System.out.println("\n" + "Mnemonic Opeartion: " + mnemonicOperation + "\n" +  "Machine Code: " + machineCode);
-		}
-		else
-		{
-			System.out.println("No code was found");
-		}
-	}
-	
-	void viewData()
-	{
-		System.out.println(OPTAB.toString());
-	}	
-}
-
-
-
-public class OPTAB {
+/*public class OPTAB {
 	public static void main(String[] args)
 	{
 
@@ -64,6 +12,8 @@ public class OPTAB {
 		//Define Scanner
 		Scanner myScanner = new Scanner(System.in);
 		
+		OPTAB.viewData();
+
 		while(true)
 		{
 			//Display Menu
@@ -93,4 +43,68 @@ public class OPTAB {
 		}//end while
 			
 	}
+}*/
+
+class OPTABHashTable
+{
+
+	//Define Hashtable
+	Hashtable<String, String[]> OPTAB;
+	
+	//Define Scanner
+	Scanner myScanner = new Scanner(System.in);
+	
+	public OPTABHashTable(){
+		this.OPTAB = new Hashtable<String, String[]>();
+		try {
+			BufferedReader reader = new BufferedReader(new FileReader("opcodes.txt"));
+			String line;
+			while ((line = reader.readLine()) != null){
+				String opString[] = line.split(",");
+			       	String data[] = {opString[1], opString[2]};	
+				addOperation(opString[0], data);
+			}
+		} catch (IOException e) {
+			System.out.println("error reading opcodes.txt");
+		}
+	}
+
+	//Add a Mnenomic Operation
+	void addOperation(String mnemonicOperation, String[] data)
+	{
+		/*
+		//Ask the user for input
+		System.out.println("Enter the Mnemonic Operation you wish to add");//Get Replaced?
+		String mnemonicOperation = myScanner.nextLine();
+		System.out.println("Enter the machine code related to the mnemonic operation");//Get Replaced?
+		int mnemonicMachineCode = Integer.parseInt(myScanner.nextLine());
+		*/
+		//Insert the value into the hash table
+		OPTAB.put(mnemonicOperation, data);
+	}
+	
+	//Find a Mnenomic Operation 
+	String[] findOperation(String mnemonicOperation)
+	{
+		//Get User Input
+		//System.out.println("Enter the Mnemonic operation you wish to find");//Get Replaced?
+		//String mnemonicOperation = myScanner.nextLine();
+		//Find the input
+	
+		String[] data = OPTAB.get(mnemonicOperation);
+		return data;
+		
+	}
+	
+	void viewData()
+	{
+		OPTAB.forEach((k, v) -> {
+			System.out.print(k + ": ");
+			for (int i = 0; i < v.length; i++) {
+				System.out.println(v[i] + ", ");
+			}
+		});
+		System.out.println();
+	}	
 }
+
