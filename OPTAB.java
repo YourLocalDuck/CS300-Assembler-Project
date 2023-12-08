@@ -52,7 +52,7 @@ class OPTABHashTable
 	Hashtable<String, String[]> OPTAB;
 	
 	//Define Scanner
-	Scanner myScanner = new Scanner(System.in);
+	Scanner myScanner = new Scanner(System.in); // What is the purpose of this scanner? It is never used.
 	
 	public OPTABHashTable(){
 		this.OPTAB = new Hashtable<String, String[]>();
