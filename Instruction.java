@@ -8,6 +8,18 @@ public class Instruction {
     String objCode;
 
 
+	public Instruction() {
+	}
+	
+	public Instruction(Instruction instruction) {
+		this.loc = instruction.getLoc();
+		this.label = instruction.getLabel();
+		this.mnemonic = instruction.getMnemonic();
+		this.operands = instruction.getOperands();
+		this.comment = instruction.getComment();
+		this.objCode = instruction.getObjCode();
+	}
+
 	public void setLoc(String loc) {
 		this.loc = loc;
 	}
@@ -25,6 +37,10 @@ public class Instruction {
 
 	public String getOperands() {
 		return this.operands;
+	}
+
+	public String getComment() {
+		return this.comment;
 	}
 
 	public void setObjCode(String objCode) {
