@@ -1,10 +1,13 @@
 import java.util.*;
 import java.io.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Main {
     
     public static void main(String[] args) {
 	//pass 1
+	Table LITTAB = new Table();
 	Table BLKTAB = new Table();
 	Table SYMTAB = new Table();
 	OPTABHashTable OPTAB = new OPTABHashTable();
@@ -12,13 +15,16 @@ public class Main {
 	String blockName = "";
 	int blockNum = 0;
 	String baseVal = "";
-        String fileName = "functions";
+        String fileName = "literals";
         FileInput fileParser = new FileInput(fileName+".txt");
         List<Instruction> basicInstructions = fileParser.getParsedInstructions(1);
 
+
+	String programName = "";
 	Instruction startInstruction = basicInstructions.get(0);
 	int startIndex = 0;
 	if (startInstruction.getMnemonic().equals("START")) {
+		programName = startInstruction.getLabel();
 		LOCCTR = Integer.parseInt(startInstruction.getOperands());
 		String hexLoc = convertToHex(LOCCTR, 4);
 		startInstruction.setLoc(hexLoc);
@@ -35,11 +41,48 @@ public class Main {
         for (int i = startIndex; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		String opcode = instruction.getMnemonic();
+		String type = "";
 
 		int locAmount = 3;
 		if (opcode.charAt(0) == '+') {
 			opcode = opcode.substring(1);
 			locAmount = 4;
+			type = "A";
+		}
+
+		String temp_holder = instruction.getOperands();
+		boolean isLiteral = temp_holder.startsWith("=");
+		if (isLiteral) {
+			String var_name = "";
+			String[] var_value = {"", ""};
+			String[] parts = temp_holder.split("=");
+
+			var_name = parts[1];
+
+			char varType = 'X';
+			for (String element : parts) {
+				char[] charArray = element.toCharArray();
+				for(int start = 0; start < charArray.length; start++) {	
+    	            			if(start == 0) {
+    	            				varType = charArray[start];
+    	            				break;
+    	            			}
+    	            		}
+			
+				String x = element;
+				Pattern p = Pattern.compile("'([^' ]+)'");
+				Matcher m = p.matcher(x);
+				while (m.find()) {
+					var_value[0] = m.group(1);
+				}
+			}
+			int litLength = 0;
+			if (varType == 'C') {
+				litLength = var_value[0].length();
+			}
+			else litLength = 1;
+			var_value[1] = convertToHex(litLength, 4);
+			LITTAB.addEntry(var_name, var_value);
 		}
 
 		String[] opVal = OPTAB.findOperation(opcode);
@@ -48,7 +91,10 @@ public class Main {
 		String label = instruction.getLabel();
 
 		if (!(label.equals(""))) {
-			String[] labelValues = {hexLoc, blockName};
+			if (type.equals("")) {
+				type = "R";
+			}
+			String[] labelValues = {hexLoc, blockName, type};
 			boolean canAdd = SYMTAB.addEntry(label, labelValues);
 			if (!canAdd) {
 				System.out.println("ERROR: Duplicate symbol '" + label + "'");
@@ -84,11 +130,91 @@ public class Main {
 				}
 				else LOCCTR += 1;
 			}
+			else if (opcode.equals("EQU")) {
+				String[] labelVals = SYMTAB.getEntry(label);
+				String operands = instruction.getOperands();
+				String labelLoc = "";
+				if (operands.equals("*")) {
+					labelLoc = convertToHex(LOCCTR, 4);
+					labelVals[2] = "R";
+				}
+				else {
+					try { 
+						int value = Integer.parseInt(operands);
+						labelLoc = convertToHex(value, 4);
+						labelVals[2] = "A";
+
+					} catch (NumberFormatException e) {
+						String operation = "";
+						if (operands.contains("-")) {
+							operation = "-";
+						}
+						else if (operands.contains("+")) {
+							operation = "+";
+						}
+						if (!(operation.equals(""))) {
+							int[] values = {0, 0};
+							int relativeCounter = 0;
+							String[] terms = operands.split(operation);
+							for (int k = 0; k < terms.length; k++) {
+								String[] termData = SYMTAB.getEntry(terms[k]);
+								values[k] = Integer.parseInt(termData[0], 16);
+								if (termData[2].equals("R")) {
+									relativeCounter++;
+								}
+							}
+							if (relativeCounter != 2) {
+								System.out.println("ERROR: Calculating expression with odd number of relative terms");
+								System.exit(0);
+							}
+							else {
+								int finalVal = 0;
+								if (operation.equals("+")) {
+									finalVal = values[0] + values[1];
+								}
+								else {
+									finalVal = values[0] - values[1];
+								}
+								labelLoc = convertToHex(finalVal, 4);
+								labelVals[2] = "A";
+							}
+						}
+					}
+				}
+				labelVals[0] = labelLoc;
+				instruction.setLoc(labelLoc);
+				SYMTAB.editEntry(label, labelVals);
+			}
 			else if (opcode.equals("BASE")) {
 				baseVal = instruction.getOperands();
 			}
 			else if (opcode.equals("END")) {
 				i = basicInstructions.size();
+				Enumeration<String> enumKey = LITTAB.table.keys();
+				while(enumKey.hasMoreElements()) {
+					String key = enumKey.nextElement();
+					String[] litVals = LITTAB.getEntry(key);
+	      			 	if (!(litVals.length > 2)) {
+						int litLength = Integer.parseInt(litVals[1], 16);
+						String[] newLitVals = {litVals[0], litVals[1], convertToHex(LOCCTR, 4)};
+						LITTAB.editEntry(key, newLitVals);
+						LOCCTR += litLength;		
+					}
+				}
+			}
+			else if (opcode.equals("LTORG")) {
+				Enumeration<String> enumKey = LITTAB.table.keys();
+				while(enumKey.hasMoreElements()) {
+					String key = enumKey.nextElement();
+					String[] litVals = LITTAB.getEntry(key);
+	      			 	if (!(litVals.length > 2)) {
+						int litLength = Integer.parseInt(litVals[1], 16);
+						String[] newLitVals = {litVals[0], litVals[1], convertToHex(LOCCTR, 4)};
+						LITTAB.editEntry(key, newLitVals);
+						LOCCTR += litLength;		
+					}
+				}
+		
 			}
 			else if (opcode.equals("USE")){
 				String operand = instruction.getOperands();
@@ -149,8 +275,9 @@ public class Main {
 	endBlkVal[3] = convertToHex(LOCCTR, 4);
 	BLKTAB.editEntry(blockName, endBlkVal);
 
-
+	//LITTAB.printTable();
 	//SYMTAB.printTable();
+
 
 	//set lengths for each block, get total program length	
 	int endLoc = 0;
@@ -168,8 +295,7 @@ public class Main {
 
 
 	FileOutput writer = new FileOutput(fileName +"Intr.txt");
-	writer.writeIntermediateFile(basicInstructions, 1);
-
+	writer.writeIntermediateFilePass1(basicInstructions, LITTAB);
 
 	//pass 2
 
@@ -191,6 +317,7 @@ public class Main {
 	List<String> tRecords = new LinkedList<String>();
 	String mRec = "M";
 	List<String> mRecords = new LinkedList<String>();
+	fileParser.setFileName(fileName + "Intr.txt");
 	basicInstructions = fileParser.getParsedInstructions(2);
 
 	
@@ -216,7 +343,7 @@ public class Main {
 	if (startOpCode.equals("START")) {
 		int startLoc = Integer.parseInt(startInstruction.getLoc(), 16);
 		int progLen = LOCCTR - startLoc;
-		hRec += startInstruction.getLabel();
+		hRec += programName;
 		hRec += startInstruction.getLoc();
 		String progLenHex = convertToHex(progLen, 6);
 		hRec += progLenHex;
@@ -237,7 +364,27 @@ public class Main {
 		Instruction instruction = basicInstructions.get(i);
 		int format = 3;
 		if (i + 1 < basicInstructions.size()){
-			pc = Integer.parseInt(basicInstructions.get(i+1).getLoc(), 16);
+			int j = 1;
+			boolean pcFound = false;
+			boolean isEmpty = false;
+			while (!pcFound) {
+				if (i+j < basicInstructions.size()) {
+					String pcVal = basicInstructions.get(i + j).getLoc();
+					if (pcVal.equals("")) {
+						j++;
+					}
+					else {
+						pcFound = true;
+					}
+				}
+				else {
+					isEmpty = true;
+					pcFound = true;
+				}
+			}
+			if (!isEmpty) {	
+				pc = Integer.parseInt(basicInstructions.get(i+j).getLoc(), 16);
+			}
 		}
 		else pc = LOCCTR;
 		String opcode = instruction.getMnemonic();
@@ -246,10 +393,13 @@ public class Main {
 			tRecords.add(tRec);
 			eRec += firstExecLine;
 			endReached = true;
-			i = basicInstructions.size();
 		}
 		else if (opcode.equals("BYTE") || opcode.equals("WORD")) {
 			objCode = toMachineCodeConst(instruction.getOperands());
+		}
+		else if (opcode.equals("*")) {
+			String operand = instruction.getOperands().substring(1);
+			objCode = toMachineCodeConst(operand);
 		}
 		else {
 			//check for format 4, remove '+' if exists
@@ -308,8 +458,14 @@ public class Main {
 									operandAddr[j] = Integer.parseInt(operandAddrStr);
 									isConstant = true;
 								} catch (NumberFormatException e) {
-									System.out.println("ERROR: Undefined Symbol '" + operands[j] + "'");
-									System.exit(0);
+									if (operands[j].charAt(0) == '=') {
+										String[] litVals = LITTAB.getEntry(operands[j].substring(1));
+										operandAddr[j] = Integer.parseInt(litVals[2], 16);
+									}
+									else {
+										System.out.println("ERROR: Undefined Symbol '" + operands[j] + "'");
+										System.exit(0);
+									}
 								}
 							}
 						}
@@ -373,7 +529,7 @@ public class Main {
 		tRecords.add(tRec);
 		eRec += firstExecLine;
 	}
-	writer.writeIntermediateFile(basicInstructions, 2);
+	writer.writeIntermediateFilePass2(basicInstructions);
 
         ObjectProgram output = new ObjectProgram();
         output.Head = hRec;
@@ -561,6 +717,7 @@ public class Main {
 			return "";
 		}
 	}
+
 
 	//Function to convert a decimal integer to a binary string. Specify a length for how many digits 
 	//to include.

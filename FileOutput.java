@@ -1,8 +1,5 @@
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
+import java.io.*;
 
 /**
  * FileOutput
@@ -18,38 +15,66 @@ public class FileOutput {
     }
 
     //writes to the intermediate file. Specify pass 1 or pass 2 of assembly as second argument.
-    void writeIntermediateFile(List<Instruction> instructionList, int pass) {
+    void writeIntermediateFilePass1(List<Instruction> instructionList, Table LITTAB) {
 	try(BufferedWriter writer = new BufferedWriter(new FileWriter(this.fileName))) {
-		if (pass == 1) {
-			for (int i = 0; i < instructionList.size(); i++) {
-				Instruction instruction = instructionList.get(i);
-				writer.write(instruction.getLoc() + " ");
-				writer.write(instruction.getMnemonic() + " ");
-				writer.write(instruction.getOperands() + " ");
+		for (int i = 0; i < instructionList.size(); i++) {
+			Instruction instruction = instructionList.get(i);
+			if ((instruction.getMnemonic().equals("LTORG") || instruction.getMnemonic().equals("END"))) {
+				writer.write("" + "\t");
+				writer.write(instruction.getMnemonic() + "\t");
+				writer.write("");
+				int LOCCTR = Integer.parseInt(instruction.getLoc(), 16);
 				writer.newLine();
-			}
-		}
-		else if (pass == 2) {
-			for (int i = 0; i < instructionList.size(); i++) {
-				Instruction instruction = instructionList.get(i);
-				writer.write(instruction.getLoc() + " ");
-				writer.write(instruction.getMnemonic() + " ");
-				writer.write(instruction.getOperands() + " ");
-				if (instruction.getObjCode() != null){
-					writer.write(instruction.getObjCode());
+
+				Enumeration<String> enumKey = LITTAB.table.keys();
+				while(enumKey.hasMoreElements()) {
+					String key = enumKey.nextElement();
+					String[] litVals = LITTAB.getEntry(key);
+					if (Integer.parseInt(litVals[2], 16) == LOCCTR) {
+						writer.write(instruction.getLoc() + "\t");
+						writer.write("*" + "\t");
+						writer.write("=" + key);
+						LOCCTR += Integer.parseInt(litVals[1], 16);
+						writer.newLine();
+					}
 				}
+
+			}
+			else {
+				writer.write(instruction.getLoc() + "\t");
+				writer.write(instruction.getMnemonic() + "\t");
+				writer.write(instruction.getOperands());
 				writer.newLine();
 			}
 		}
-		else {
-		    System.out.println("Specified invalid pass. Check call to getParsedInstructions and ensure pass is 1 or 2.");
-		    System.exit(0);
-		}	
+		writer.close();
 	} catch (IOException e) {
 		System.out.println("could not write intermediate file");
 	}
     }
 
+
+    void writeIntermediateFilePass2(List<Instruction> instructionList) {
+	try(BufferedWriter writer = new BufferedWriter(new FileWriter(this.fileName))) {
+		for (int i = 0; i < instructionList.size(); i++) {
+			Instruction instruction = instructionList.get(i);
+			if (instruction.getMnemonic().equals("LTORG") || instruction.getMnemonic().equals("END")) {
+				writer.write("" + "\t");
+			}
+			else {
+				writer.write(instruction.getLoc() + "\t");
+			}
+			writer.write(instruction.getMnemonic() + "\t");
+			writer.write(instruction.getOperands() + "\t");
+			if (instruction.getObjCode() != null){
+				writer.write(instruction.getObjCode());
+			}
+			writer.newLine();
+		}
+	} catch (IOException e) {
+		System.out.println("could not write intermediate file");
+	}
+    }
 
     void writeObjectFile(ObjectProgram output) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(this.fileName))) {

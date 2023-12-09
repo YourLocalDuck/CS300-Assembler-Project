@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.LinkedList;
 import java.util.List;
+import java.io.*;
 
 /*
  * Class for handling inputting from file and parsing the file's contents into a custom datatype "Instruction"
@@ -55,10 +56,13 @@ public class FileInput {
 					String[] instructionParts = line.split("\t");
 					Instruction instruction = new Instruction();
 					instruction.loc = instructionParts[0];
-					instruction.label = instructionParts[1];
-					instruction.mnemonic = instructionParts[2];
-					instruction.operands = (instructionParts.length >= 4) ? instructionParts[3] : "";
-					instruction.comment = (instructionParts.length >= 5) ? instructionParts[4] : "";
+					instruction.mnemonic = instructionParts[1];
+					if (instructionParts.length == 3) {
+						instruction.operands = instructionParts[2];
+					}
+					else {
+						instruction.operands = "";
+					}
 					this.parsedInstructions.add(instruction);
 				}
 			} else {
@@ -66,7 +70,9 @@ public class FileInput {
 						"Specified invalid pass. Check call to getParsedInstructions and ensure pass is 1 or 2.");
 				System.exit(0);
 			}
+			br.close();
 		} catch (Exception e) {
+			System.out.println("badddd");
 			// TODO: handle exception
 			e.printStackTrace();
 		}

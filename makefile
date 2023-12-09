@@ -20,7 +20,7 @@ OPTAB: OPTAB.java
 	javac -g OPTAB.java
 
 instruction: Instruction.java
-	javac -g instruction.java
+	javac -g Instruction.java
 
 clean: 
 	rm *.class
