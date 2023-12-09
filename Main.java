@@ -5,11 +5,14 @@ public class Main {
     
     public static void main(String[] args) {
 	//pass 1
+	Table BLKTAB = new Table();
 	Table SYMTAB = new Table();
 	OPTABHashTable OPTAB = new OPTABHashTable();
 	int LOCCTR = 0;
+	String blockName = "";
+	int blockNum = 0;
 	String baseVal = "";
-        String fileName = "basic";
+        String fileName = "functions";
         FileInput fileParser = new FileInput(fileName+".txt");
         List<Instruction> basicInstructions = fileParser.getParsedInstructions(1);
 
@@ -20,6 +23,14 @@ public class Main {
 		String hexLoc = convertToHex(LOCCTR, 4);
 		startInstruction.setLoc(hexLoc);
 		startIndex = 1;
+		String[] blktabValues = {"0", hexLoc, "0000", hexLoc};
+		BLKTAB.addEntry("default", blktabValues);
+		blockName = "default";
+	}
+	else {
+		String[] blktabValues = {"0", "0000", "0000", "0000"};
+		BLKTAB.addEntry("default", blktabValues);
+		blockName = "default";
 	}
         for (int i = startIndex; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
@@ -37,7 +48,7 @@ public class Main {
 		String label = instruction.getLabel();
 
 		if (!(label.equals(""))) {
-			String[] labelValues = {hexLoc};
+			String[] labelValues = {hexLoc, blockName};
 			boolean canAdd = SYMTAB.addEntry(label, labelValues);
 			if (!canAdd) {
 				System.out.println("ERROR: Duplicate symbol '" + label + "'");
@@ -79,6 +90,39 @@ public class Main {
 			else if (opcode.equals("END")) {
 				i = basicInstructions.size();
 			}
+			else if (opcode.equals("USE")){
+				String operand = instruction.getOperands();
+				if (operand.equals("")) {
+					if (blockName.equals("default")) {
+						System.out.println("ERROR: Called USE to exit block when in default block");
+						System.exit(0);
+					}
+					else {
+						String[] blkValues = BLKTAB.getEntry(blockName);
+						blkValues[3] = convertToHex(LOCCTR, 4);
+						BLKTAB.editEntry(blockName, blkValues);
+						blkValues = BLKTAB.getEntry("default");
+						LOCCTR = Integer.parseInt(blkValues[3], 16);
+						blockName = "default";
+					}
+				}
+				else {
+					String[] blkValues = BLKTAB.getEntry(blockName);
+					blkValues[3] = convertToHex(LOCCTR, 4);
+					BLKTAB.editEntry(blockName, blkValues);
+					blkValues = BLKTAB.getEntry(operand);
+					if (blkValues == null)	 {
+						blockNum += 1;
+						String[] newBlkValues = {Integer.toString(blockNum), convertToHex(LOCCTR, 4), "0000", "0000"};
+						BLKTAB.addEntry(operand, newBlkValues);
+						LOCCTR = 0;
+					}
+					else {
+						LOCCTR = Integer.parseInt(blkValues[3], 16);
+					}
+					blockName = operand;
+				}
+			}
 			else {
 				System.out.println(opcode);
 				System.out.println("ERROR: invalid operation");
@@ -101,13 +145,46 @@ public class Main {
 	}
 
 	
+	String[] endBlkVal = BLKTAB.getEntry(blockName);
+	endBlkVal[3] = convertToHex(LOCCTR, 4);
+	BLKTAB.editEntry(blockName, endBlkVal);
+
 
 	//SYMTAB.printTable();
+
+	//set lengths for each block, get total program length	
+	int endLoc = 0;
+	Enumeration<String> enumKey = BLKTAB.table.keys();
+	while(enumKey.hasMoreElements()) {
+		String key = enumKey.nextElement();
+		String[] blkVal = BLKTAB.getEntry(key);
+	       	blkVal[2] = blkVal[3];
+		BLKTAB.table.replace(key, blkVal);	
+		endLoc += Integer.parseInt(blkVal[2], 16);
+	}
+	LOCCTR = endLoc;
+
+	//BLKTAB.printTable();
+
 
 	FileOutput writer = new FileOutput(fileName +"Intr.txt");
 	writer.writeIntermediateFile(basicInstructions, 1);
 
+
 	//pass 2
+
+	//for each label, add their relative addresses to their block addresses
+	SYMTAB.table.forEach((k, v) -> {
+		if (v.length > 1) {
+			String[] symVal = v;
+			int integerLoc = Integer.parseInt(v[0], 16);
+			String[] blkVal = BLKTAB.getEntry(v[1]);
+			integerLoc += Integer.parseInt(blkVal[0]);
+			symVal[0] = convertToHex(integerLoc, 4);
+			SYMTAB.table.replace(k, symVal);
+		}
+	});
+
 	String hRec = "H";
 	String eRec = "E";
 	String tRec = "T";
@@ -115,6 +192,8 @@ public class Main {
 	String mRec = "M";
 	List<String> mRecords = new LinkedList<String>();
 	basicInstructions = fileParser.getParsedInstructions(2);
+
+	
 
 	int base = 0;
 	if (!baseVal.equals("")) {
@@ -306,10 +385,13 @@ public class Main {
     }
 
 	//Function that generates object code for a line of assembly.
-	//Specify the OPCODE as a string, the operand address (IN HEX!!!!),
+	//Specify the OPCODE as a string, the operand addresses (IN HEX!!!!),
 	//the format type (1-4), the addressing mode ("#" for immediate, "@" for indirect, anything else for simple),
-	//whether or not index register is used (true for yes, false for no), the PC counter value (ALSO HEX), 
-	//and the base register value (ALSO HEX). Will return a hex string with the object code.
+	//whether or not index register is used (true for yes, false for no), if the value
+        //is a constant or not(determines if relative addressing is used or not), 
+        //the PC counter value (ALSO HEX), and the base register value (ALSO HEX). 
+ 
+        //Will return a hex string with the object code.
 	public static String toMachineCode(String OPCODE, int operandAddr1, int operandAddr2, int format, String mode, boolean isIndexed, boolean isConstant, int PC, int BASE) {
 		//add first four bits of OPCODE to machineCode string
 		String machineCode = "";
