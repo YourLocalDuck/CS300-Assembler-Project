@@ -31,7 +31,7 @@ public class FileOutput {
 					String key = enumKey.nextElement();
 					String[] litVals = LITTAB.getEntry(key);
 					if (Integer.parseInt(litVals[2], 16) == LOCCTR) {
-						writer.write(instruction.getLoc() + "\t");
+						writer.write(litVals[2] + "\t");
 						writer.write("*" + "\t");
 						writer.write("=" + key);
 						LOCCTR += Integer.parseInt(litVals[1], 16);
@@ -39,6 +39,12 @@ public class FileOutput {
 					}
 				}
 
+			}
+			else if (instruction.getMnemonic().equals("USE")) {
+				writer.write(instruction.getLoc() + "\t");
+				writer.write(instruction.getMnemonic() + "\t");
+				writer.write(instruction.getOperands());
+				writer.newLine();
 			}
 			else {
 				writer.write(instruction.getLoc() + "\t");

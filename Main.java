@@ -15,7 +15,7 @@ public class Main {
 	String blockName = "";
 	int blockNum = 0;
 	String baseVal = "";
-        String fileName = "literals";
+        String fileName = "prog_blocks";
         FileInput fileParser = new FileInput(fileName+".txt");
         List<Instruction> basicInstructions = fileParser.getParsedInstructions(1);
 
@@ -47,7 +47,7 @@ public class Main {
 		if (opcode.charAt(0) == '+') {
 			opcode = opcode.substring(1);
 			locAmount = 4;
-			type = "A";
+			type = "R";
 		}
 
 		String temp_holder = instruction.getOperands();
@@ -209,7 +209,7 @@ public class Main {
 					String[] litVals = LITTAB.getEntry(key);
 	      			 	if (!(litVals.length > 2)) {
 						int litLength = Integer.parseInt(litVals[1], 16);
-						String[] newLitVals = {litVals[0], litVals[1], convertToHex(LOCCTR, 4)};
+						String[] newLitVals = {litVals[0], litVals[1], convertToHex(LOCCTR, 4), blockName};
 						LITTAB.editEntry(key, newLitVals);
 						LOCCTR += litLength;		
 					}
@@ -229,6 +229,7 @@ public class Main {
 						BLKTAB.editEntry(blockName, blkValues);
 						blkValues = BLKTAB.getEntry("default");
 						LOCCTR = Integer.parseInt(blkValues[3], 16);
+						instruction.setLoc(convertToHex(LOCCTR, 4));
 						blockName = "default";
 					}
 				}
@@ -246,6 +247,7 @@ public class Main {
 					else {
 						LOCCTR = Integer.parseInt(blkValues[3], 16);
 					}
+					instruction.setLoc(convertToHex(LOCCTR, 4));
 					blockName = operand;
 				}
 			}
@@ -286,13 +288,13 @@ public class Main {
 		String key = enumKey.nextElement();
 		String[] blkVal = BLKTAB.getEntry(key);
 	       	blkVal[2] = blkVal[3];
+		blkVal[1] = convertToHex(endLoc, 4);
 		BLKTAB.table.replace(key, blkVal);	
 		endLoc += Integer.parseInt(blkVal[2], 16);
 	}
 	LOCCTR = endLoc;
 
 	//BLKTAB.printTable();
-
 
 	FileOutput writer = new FileOutput(fileName +"Intr.txt");
 	writer.writeIntermediateFilePass1(basicInstructions, LITTAB);
@@ -302,12 +304,25 @@ public class Main {
 	//for each label, add their relative addresses to their block addresses
 	SYMTAB.table.forEach((k, v) -> {
 		if (v.length > 1) {
-			String[] symVal = v;
-			int integerLoc = Integer.parseInt(v[0], 16);
-			String[] blkVal = BLKTAB.getEntry(v[1]);
-			integerLoc += Integer.parseInt(blkVal[0]);
-			symVal[0] = convertToHex(integerLoc, 4);
-			SYMTAB.table.replace(k, symVal);
+			if (v[2].equals("R")) {
+				String[] symVal = v;
+				int integerLoc = Integer.parseInt(v[0], 16);
+				String[] blkVal = BLKTAB.getEntry(v[1]);
+				integerLoc += Integer.parseInt(blkVal[1], 16);
+				symVal[0] = convertToHex(integerLoc, 4);
+				SYMTAB.table.replace(k, symVal);
+			}
+		}
+	});
+
+	LITTAB.table.forEach((k, v) -> {
+		if (v.length > 3) {
+			String[] litVals = v;
+			int integerLoc = Integer.parseInt(v[2], 16);
+			String [] blkVal = BLKTAB.getEntry(v[3]);
+			integerLoc += Integer.parseInt(blkVal[1], 16);
+			litVals[2] = convertToHex(integerLoc, 4);
+			LITTAB.table.replace(k, litVals);
 		}
 	});
 
@@ -363,28 +378,54 @@ public class Main {
 	for (int i = 0; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		int format = 3;
-		if (i + 1 < basicInstructions.size()){
-			int j = 1;
-			boolean pcFound = false;
-			boolean isEmpty = false;
-			while (!pcFound) {
-				if (i+j < basicInstructions.size()) {
-					String pcVal = basicInstructions.get(i + j).getLoc();
-					if (pcVal.equals("")) {
+		boolean pcFound = false;
+		boolean outOfBounds = false;
+		int j = 1;
+		String nextLoc = "";
+		while (!pcFound) {
+			if (i + j < basicInstructions.size()) {
+				if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
+					boolean nextUseFound = false;
+					while (!nextUseFound) {
+						if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
+							if (basicInstructions.get(i+j).getOperands().equals("")) {
+								nextLoc = basicInstructions.get(i+j).getLoc();
+								pcFound = true;
+								nextUseFound = true;
+							}
+							else {
+								j++;
+							}
+						}
+						else if (basicInstructions.get(i+j).getMnemonic().equals("END")) {
+							pcFound = true;
+							nextUseFound = true;
+							outOfBounds = true;
+						}
+						else {
+							j++;
+						}
+					}
+				}
+				else {
+					nextLoc = basicInstructions.get(i + j).getLoc();
+					if (nextLoc.equals("")) {
 						j++;
 					}
 					else {
 						pcFound = true;
 					}
-				}
-				else {
-					isEmpty = true;
-					pcFound = true;
+	
 				}
 			}
-			if (!isEmpty) {	
-				pc = Integer.parseInt(basicInstructions.get(i+j).getLoc(), 16);
+			else {
+				pcFound = true;
+				outOfBounds = true;
 			}
+			
+		}
+		if (!outOfBounds) {
+			pc = Integer.parseInt(nextLoc, 16);
 		}
 		else pc = LOCCTR;
 		String opcode = instruction.getMnemonic();
@@ -444,13 +485,21 @@ public class Main {
 					isConstant = true;
 				}
 				else {
-					for (int j = 0; j < operands.length; j++){
+					for (j = 0; j < operands.length; j++){
 						if ((!(operands[j].equals("")))) {
 							String[] values = SYMTAB.getEntry(operands[j]);
 							if (values != null) {
+								if (values.length > 2) {
+									if (values[2].equals("A")) {
+										isConstant = true;
+									}
+									else isConstant = false;
+								}
+								else {
+									isConstant = false;
+								}
 								String operandAddrStr = values[0];
 								operandAddr[j] = Integer.parseInt(operandAddrStr, 16);
-								isConstant = false;
 							}
 							else {
 								try {
@@ -471,7 +520,6 @@ public class Main {
 						}
 					}
 				}
-				
 				//check for indexed addressing
 				boolean isIndexed = false;
 				if (operands[1].equals("X")) {
@@ -631,16 +679,14 @@ public class Main {
 			else {
 				//PC relative
 				int disp = 0;
-				if (isIndexed){
-				       disp = (operandAddr1 + operandAddr2) - PC;	
-				}	
-				else disp = operandAddr1 - PC;
+				disp = operandAddr1 - PC;
 				//if disp is greater than 12 bits, use base relative
 				if (disp >= 2048 || disp <= -2048) {
 					disp = operandAddr1 - BASE;
 					//if disp still greater than 12 bits, throw error, quit assembly
 					if (disp >= 2048 || disp <= -2048) {
 						System.out.println("Error: Target Address outside 12 bit limit.");
+						System.out.println(OPCODE + " " + operandAddr1 + " " + PC + " " + BASE);
 						System.exit(0);
 						return machineCode;
 					}
