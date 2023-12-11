@@ -374,37 +374,79 @@ public class Main {
 	boolean foundFirstExecLine = false;
 	boolean endReached = false;
 	boolean isConstant = false;
+	int blockStartForRecord = 0;
+	int lastLineToGenerateObjCode = 0;
 	String firstExecLine = "";
 	for (int i = 0; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		int format = 3;
 		boolean pcFound = false;
 		boolean outOfBounds = false;
+		boolean useStatement = false;
 		int j = 1;
 		String nextLoc = "";
+		if (instruction.getMnemonic().equals("USE")) {
+			pcFound = true;
+			useStatement = true;
+			outOfBounds = true;
+		}
+		//calculate pc
 		while (!pcFound) {
 			if (i + j < basicInstructions.size()) {
 				if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
-					boolean nextUseFound = false;
-					while (!nextUseFound) {
-						if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
-							if (basicInstructions.get(i+j).getOperands().equals("")) {
-								nextLoc = basicInstructions.get(i+j).getLoc();
+					if (!(basicInstructions.get(i+j).getOperands().equals(""))) {
+						String prevBlock = blockName;
+						blockName = basicInstructions.get(i+j).getOperands();
+						boolean nextUseFound = false;
+						while (!nextUseFound) {
+							if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
+								if (basicInstructions.get(i+j).getOperands().equals("")) {
+									nextLoc = basicInstructions.get(i+j).getLoc();
+									pcFound = true;
+									nextUseFound = true;
+								}
+								else {
+									j++;
+								}
+							}
+							else if (basicInstructions.get(i+j).getMnemonic().equals("END")) {
 								pcFound = true;
 								nextUseFound = true;
+								String[] blkVals = BLKTAB.getEntry(prevBlock);
+								nextLoc = blkVals[2];
+								blockStartForRecord = Integer.parseInt(blkVals[1], 16);
 							}
 							else {
 								j++;
 							}
 						}
-						else if (basicInstructions.get(i+j).getMnemonic().equals("END")) {
-							pcFound = true;
-							nextUseFound = true;
-							outOfBounds = true;
+					}
+					else {
+						boolean nextUseFound = false;
+						while (!nextUseFound) {
+							if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
+								if (basicInstructions.get(i+j).getOperands().equals(blockName)) {
+									nextLoc = basicInstructions.get(i+j).getLoc();
+									String[] blkVals = BLKTAB.getEntry(blockName);
+									blockStartForRecord = Integer.parseInt(blkVals[1], 16);
+									pcFound = true;
+									nextUseFound = true;
+								}
+								else {
+									j++;
+								}
+							}
+							else if (basicInstructions.get(i+j).getMnemonic().equals("END")) {
+								pcFound = true;
+								nextUseFound = true;
+								String[] blkVals = BLKTAB.getEntry(blockName);
+								nextLoc = blkVals[2];
+							}
+							else {
+								j++;
+							}
 						}
-						else {
-							j++;
-						}
+						blockName = "default";
 					}
 				}
 				else {
@@ -427,11 +469,21 @@ public class Main {
 		if (!outOfBounds) {
 			pc = Integer.parseInt(nextLoc, 16);
 		}
-		else pc = LOCCTR;
+		else if (!useStatement){
+		       	pc = LOCCTR;
+		}
 		String opcode = instruction.getMnemonic();
 		String objCode = "";
 		if (opcode.equals("END")) {
-			tRecords.add(tRec);
+			if (tRec.length() > 7) {
+				tRecEndLen = pc + blockStartForRecord;	
+				String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
+				String finalTRec = "";
+				finalTRec += tRec.substring(0, 7);
+				finalTRec += tRecLen;
+				finalTRec += tRec.substring(7);	
+				tRecords.add(finalTRec);
+			}
 			eRec += firstExecLine;
 			endReached = true;
 		}
@@ -441,6 +493,7 @@ public class Main {
 		else if (opcode.equals("*")) {
 			String operand = instruction.getOperands().substring(1);
 			objCode = toMachineCodeConst(operand);
+
 		}
 		else {
 			//check for format 4, remove '+' if exists
@@ -529,7 +582,7 @@ public class Main {
 
 			}
 		}
-			//add to instruction, tRecord
+		//add to instruction, tRecord
 		if (!objCode.equals("")) {
 
 			instruction.setObjCode(objCode);
@@ -540,6 +593,7 @@ public class Main {
 				foundFirstExecLine = true;
 			}
 			if (Integer.parseInt(instruction.getLoc(), 16) - tRecStartLen >= 1000) {
+				tRecEndLen = Integer.parseInt(basicInstructions.get(lastLineToGenerateObjCode + 1).getLoc(), 16);
 				String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
 				String finalTRec = "";
 				finalTRec += tRec.substring(0, 7);
@@ -570,8 +624,40 @@ public class Main {
 				mRecords.add(mRec);
 				mRec = "M";
 			}
+			lastLineToGenerateObjCode = i;
 		}
-		
+		else if (instruction.getMnemonic().equals("USE")) {
+			if (instruction.getOperands().equals("")) {
+				if (tRec.length() > 7) {
+					tRecEndLen = pc + blockStartForRecord;	
+					String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
+					String finalTRec = "";
+					finalTRec += tRec.substring(0, 7);
+					finalTRec += tRecLen;
+					finalTRec += tRec.substring(7);	
+					tRecords.add(finalTRec);
+				}
+				String tRecStart = instruction.getLoc();
+				tRec = "T" + "00" + instruction.getLoc();
+				tRecStartLen = Integer.parseInt(instruction.getLoc(), 16);
+			}
+			else {
+				if (tRec.length() > 7) {
+					tRecEndLen = pc + blockStartForRecord;
+					String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
+					String finalTRec = "";
+					finalTRec += tRec.substring(0, 7);
+					finalTRec += tRecLen;
+					finalTRec += tRec.substring(7);	
+					tRecords.add(finalTRec);
+				}
+				String[] blkVals = BLKTAB.getEntry(instruction.getOperands());
+				int startOfBlock = Integer.parseInt(blkVals[1], 16);
+				String tRecStart = convertToHex(startOfBlock + Integer.parseInt(instruction.getLoc(), 16), 4);
+				tRec = "T" + "00" + tRecStart;
+				tRecStartLen = Integer.parseInt(tRecStart, 16);
+			}
+		}
 	}
 	if (!endReached) {
 		tRecords.add(tRec);
