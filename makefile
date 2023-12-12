@@ -1,4 +1,4 @@
-assembler: Main.java FileInput.java FileOutput.java ObjectProgram.java Table.java OPTAB.java Instruction.java
+assembler: Main.java FileInput.java FileOutput.java ObjectProgram.java Table.java OPTAB.java Instruction.java MacroProcessor.java
 	javac -g *.java
 	
 main: Main.java
@@ -21,6 +21,9 @@ OPTAB: OPTAB.java
 
 instruction: Instruction.java
 	javac -g Instruction.java
+
+mp: MacroProcessor.java
+	javac -g MacroProcessor.java
 
 clean: 
 	rm *.class

@@ -15,9 +15,14 @@ public class Main {
 	String blockName = "";
 	int blockNum = 0;
 	String baseVal = "";
-        String fileName = "prog_blocks";
+	Scanner kb = new Scanner(System.in);
+	System.out.print("Enter the name of the file to process (omit file extension): ");
+        String fileName = kb.nextLine();
         FileInput fileParser = new FileInput(fileName+".txt");
         List<Instruction> basicInstructions = fileParser.getParsedInstructions(1);
+
+	MacroProcessor mp = new MacroProcessor();	
+	basicInstructions = mp.processMacro(basicInstructions);
 
 
 	String programName = "";
@@ -563,6 +568,24 @@ public class Main {
 									if (operands[j].charAt(0) == '=') {
 										String[] litVals = LITTAB.getEntry(operands[j].substring(1));
 										operandAddr[j] = Integer.parseInt(litVals[2], 16);
+									}
+									else if (operands[j].charAt(0) == '*') {
+										if (operands[j].length() > 1) {
+											char operation = operands[j].charAt(1);
+											if (operation == '+') {
+												String valueStr = operands[j].substring(2);
+												int value = Integer.parseInt(valueStr);
+												operandAddr[j] = value + Integer.parseInt(instruction.getLoc(), 16);
+											}
+											else {
+												String valueStr = operands[j].substring(2);
+												int value = Integer.parseInt(valueStr);
+												operandAddr[j] = Integer.parseInt(instruction.getLoc(), 16) - value;
+											}
+										}
+										else {
+											operandAddr[j] = Integer.parseInt(instruction.getLoc(), 16);
+										}
 									}
 									else {
 										System.out.println("ERROR: Undefined Symbol '" + operands[j] + "'");

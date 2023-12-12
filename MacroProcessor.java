@@ -36,8 +36,8 @@ public class MacroProcessor {
         processMacro(instructionList);
     }
 
-    public void processMacro(List<Instruction> instructionList) {
-        this.processed = loadMacros(instructionList);
+    public List<Instruction> processMacro(List<Instruction> instructionList) {
+        return this.processed = loadMacros(instructionList);
     }
 
     public List<Instruction> getProcessed() {
@@ -88,7 +88,7 @@ public class MacroProcessor {
                 instructionList.addAll(i, expandedMacro);
             }
             else {
-                System.out.println("Error: Macro " + instruction.getMnemonic() + " not defined.");
+                //System.out.println("Error: Macro " + instruction.getMnemonic() + " not defined.");
                 continue;
             }
         }
