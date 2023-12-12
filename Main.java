@@ -1,34 +1,93 @@
 import java.util.*;
 import java.io.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Main {
     
     public static void main(String[] args) {
 	//pass 1
+	Table LITTAB = new Table();
+	Table BLKTAB = new Table();
 	Table SYMTAB = new Table();
 	OPTABHashTable OPTAB = new OPTABHashTable();
 	int LOCCTR = 0;
+	String blockName = "";
+	int blockNum = 0;
 	String baseVal = "";
-        String fileName = "basic";
+	Scanner kb = new Scanner(System.in);
+	System.out.print("Enter the name of the file to process (omit file extension): ");
+        String fileName = kb.nextLine();
         FileInput fileParser = new FileInput(fileName+".txt");
         List<Instruction> basicInstructions = fileParser.getParsedInstructions(1);
 
+	MacroProcessor mp = new MacroProcessor();	
+	basicInstructions = mp.processMacro(basicInstructions);
+
+
+	String programName = "";
 	Instruction startInstruction = basicInstructions.get(0);
 	int startIndex = 0;
 	if (startInstruction.getMnemonic().equals("START")) {
+		programName = startInstruction.getLabel();
 		LOCCTR = Integer.parseInt(startInstruction.getOperands());
 		String hexLoc = convertToHex(LOCCTR, 4);
 		startInstruction.setLoc(hexLoc);
 		startIndex = 1;
+		String[] blktabValues = {"0", hexLoc, "0000", hexLoc};
+		BLKTAB.addEntry("default", blktabValues);
+		blockName = "default";
+	}
+	else {
+		String[] blktabValues = {"0", "0000", "0000", "0000"};
+		BLKTAB.addEntry("default", blktabValues);
+		blockName = "default";
 	}
         for (int i = startIndex; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		String opcode = instruction.getMnemonic();
+		String type = "";
 
 		int locAmount = 3;
 		if (opcode.charAt(0) == '+') {
 			opcode = opcode.substring(1);
 			locAmount = 4;
+			type = "R";
+		}
+
+		String temp_holder = instruction.getOperands();
+		boolean isLiteral = temp_holder.startsWith("=");
+		if (isLiteral) {
+			String var_name = "";
+			String[] var_value = {"", ""};
+			String[] parts = temp_holder.split("=");
+
+			var_name = parts[1];
+
+			char varType = 'X';
+			for (String element : parts) {
+				char[] charArray = element.toCharArray();
+				for(int start = 0; start < charArray.length; start++) {	
+    	            			if(start == 0) {
+    	            				varType = charArray[start];
+    	            				break;
+    	            			}
+    	            		}
+			
+				String x = element;
+				Pattern p = Pattern.compile("'([^' ]+)'");
+				Matcher m = p.matcher(x);
+				while (m.find()) {
+					var_value[0] = m.group(1);
+				}
+			}
+			int litLength = 0;
+			if (varType == 'C') {
+				litLength = var_value[0].length();
+			}
+			else litLength = 1;
+			var_value[1] = convertToHex(litLength, 4);
+			LITTAB.addEntry(var_name, var_value);
 		}
 
 		String[] opVal = OPTAB.findOperation(opcode);
@@ -37,7 +96,10 @@ public class Main {
 		String label = instruction.getLabel();
 
 		if (!(label.equals(""))) {
-			String[] labelValues = {hexLoc};
+			if (type.equals("")) {
+				type = "R";
+			}
+			String[] labelValues = {hexLoc, blockName, type};
 			boolean canAdd = SYMTAB.addEntry(label, labelValues);
 			if (!canAdd) {
 				System.out.println("ERROR: Duplicate symbol '" + label + "'");
@@ -73,11 +135,126 @@ public class Main {
 				}
 				else LOCCTR += 1;
 			}
+			else if (opcode.equals("EQU")) {
+				String[] labelVals = SYMTAB.getEntry(label);
+				String operands = instruction.getOperands();
+				String labelLoc = "";
+				if (operands.equals("*")) {
+					labelLoc = convertToHex(LOCCTR, 4);
+					labelVals[2] = "R";
+				}
+				else {
+					try { 
+						int value = Integer.parseInt(operands);
+						labelLoc = convertToHex(value, 4);
+						labelVals[2] = "A";
+
+					} catch (NumberFormatException e) {
+						String operation = "";
+						if (operands.contains("-")) {
+							operation = "-";
+						}
+						else if (operands.contains("+")) {
+							operation = "+";
+						}
+						if (!(operation.equals(""))) {
+							int[] values = {0, 0};
+							int relativeCounter = 0;
+							String[] terms = operands.split(operation);
+							for (int k = 0; k < terms.length; k++) {
+								String[] termData = SYMTAB.getEntry(terms[k]);
+								values[k] = Integer.parseInt(termData[0], 16);
+								if (termData[2].equals("R")) {
+									relativeCounter++;
+								}
+							}
+							if (relativeCounter != 2) {
+								System.out.println("ERROR: Calculating expression with odd number of relative terms");
+								System.exit(0);
+							}
+							else {
+								int finalVal = 0;
+								if (operation.equals("+")) {
+									finalVal = values[0] + values[1];
+								}
+								else {
+									finalVal = values[0] - values[1];
+								}
+								labelLoc = convertToHex(finalVal, 4);
+								labelVals[2] = "A";
+							}
+						}
+					}
+				}
+				labelVals[0] = labelLoc;
+				instruction.setLoc(labelLoc);
+				SYMTAB.editEntry(label, labelVals);
+			}
 			else if (opcode.equals("BASE")) {
 				baseVal = instruction.getOperands();
 			}
 			else if (opcode.equals("END")) {
 				i = basicInstructions.size();
+				Enumeration<String> enumKey = LITTAB.table.keys();
+				while(enumKey.hasMoreElements()) {
+					String key = enumKey.nextElement();
+					String[] litVals = LITTAB.getEntry(key);
+	      			 	if (!(litVals.length > 2)) {
+						int litLength = Integer.parseInt(litVals[1], 16);
+						String[] newLitVals = {litVals[0], litVals[1], convertToHex(LOCCTR, 4)};
+						LITTAB.editEntry(key, newLitVals);
+						LOCCTR += litLength;		
+					}
+				}
+			}
+			else if (opcode.equals("LTORG")) {
+				Enumeration<String> enumKey = LITTAB.table.keys();
+				while(enumKey.hasMoreElements()) {
+					String key = enumKey.nextElement();
+					String[] litVals = LITTAB.getEntry(key);
+	      			 	if (!(litVals.length > 2)) {
+						int litLength = Integer.parseInt(litVals[1], 16);
+						String[] newLitVals = {litVals[0], litVals[1], convertToHex(LOCCTR, 4), blockName};
+						LITTAB.editEntry(key, newLitVals);
+						LOCCTR += litLength;		
+					}
+				}
+		
+			}
+			else if (opcode.equals("USE")){
+				String operand = instruction.getOperands();
+				if (operand.equals("")) {
+					if (blockName.equals("default")) {
+						System.out.println("ERROR: Called USE to exit block when in default block");
+						System.exit(0);
+					}
+					else {
+						String[] blkValues = BLKTAB.getEntry(blockName);
+						blkValues[3] = convertToHex(LOCCTR, 4);
+						BLKTAB.editEntry(blockName, blkValues);
+						blkValues = BLKTAB.getEntry("default");
+						LOCCTR = Integer.parseInt(blkValues[3], 16);
+						instruction.setLoc(convertToHex(LOCCTR, 4));
+						blockName = "default";
+					}
+				}
+				else {
+					String[] blkValues = BLKTAB.getEntry(blockName);
+					blkValues[3] = convertToHex(LOCCTR, 4);
+					BLKTAB.editEntry(blockName, blkValues);
+					blkValues = BLKTAB.getEntry(operand);
+					if (blkValues == null)	 {
+						blockNum += 1;
+						String[] newBlkValues = {Integer.toString(blockNum), convertToHex(LOCCTR, 4), "0000", "0000"};
+						BLKTAB.addEntry(operand, newBlkValues);
+						LOCCTR = 0;
+					}
+					else {
+						LOCCTR = Integer.parseInt(blkValues[3], 16);
+					}
+					instruction.setLoc(convertToHex(LOCCTR, 4));
+					blockName = operand;
+				}
 			}
 			else {
 				System.out.println(opcode);
@@ -101,20 +278,69 @@ public class Main {
 	}
 
 	
+	String[] endBlkVal = BLKTAB.getEntry(blockName);
+	endBlkVal[3] = convertToHex(LOCCTR, 4);
+	BLKTAB.editEntry(blockName, endBlkVal);
 
+	//LITTAB.printTable();
 	//SYMTAB.printTable();
 
+
+	//set lengths for each block, get total program length	
+	int endLoc = 0;
+	Enumeration<String> enumKey = BLKTAB.table.keys();
+	while(enumKey.hasMoreElements()) {
+		String key = enumKey.nextElement();
+		String[] blkVal = BLKTAB.getEntry(key);
+	       	blkVal[2] = blkVal[3];
+		blkVal[1] = convertToHex(endLoc, 4);
+		BLKTAB.table.replace(key, blkVal);	
+		endLoc += Integer.parseInt(blkVal[2], 16);
+	}
+	LOCCTR = endLoc;
+
+	//BLKTAB.printTable();
+
 	FileOutput writer = new FileOutput(fileName +"Intr.txt");
-	writer.writeIntermediateFile(basicInstructions, 1);
+	writer.writeIntermediateFilePass1(basicInstructions, LITTAB);
 
 	//pass 2
+
+	//for each label, add their relative addresses to their block addresses
+	SYMTAB.table.forEach((k, v) -> {
+		if (v.length > 1) {
+			if (v[2].equals("R")) {
+				String[] symVal = v;
+				int integerLoc = Integer.parseInt(v[0], 16);
+				String[] blkVal = BLKTAB.getEntry(v[1]);
+				integerLoc += Integer.parseInt(blkVal[1], 16);
+				symVal[0] = convertToHex(integerLoc, 4);
+				SYMTAB.table.replace(k, symVal);
+			}
+		}
+	});
+
+	LITTAB.table.forEach((k, v) -> {
+		if (v.length > 3) {
+			String[] litVals = v;
+			int integerLoc = Integer.parseInt(v[2], 16);
+			String [] blkVal = BLKTAB.getEntry(v[3]);
+			integerLoc += Integer.parseInt(blkVal[1], 16);
+			litVals[2] = convertToHex(integerLoc, 4);
+			LITTAB.table.replace(k, litVals);
+		}
+	});
+
 	String hRec = "H";
 	String eRec = "E";
 	String tRec = "T";
 	List<String> tRecords = new LinkedList<String>();
 	String mRec = "M";
 	List<String> mRecords = new LinkedList<String>();
+	fileParser.setFileName(fileName + "Intr.txt");
 	basicInstructions = fileParser.getParsedInstructions(2);
+
+	
 
 	int base = 0;
 	if (!baseVal.equals("")) {
@@ -137,7 +363,7 @@ public class Main {
 	if (startOpCode.equals("START")) {
 		int startLoc = Integer.parseInt(startInstruction.getLoc(), 16);
 		int progLen = LOCCTR - startLoc;
-		hRec += startInstruction.getLabel();
+		hRec += programName;
 		hRec += startInstruction.getLoc();
 		String progLenHex = convertToHex(progLen, 6);
 		hRec += progLenHex;
@@ -153,24 +379,126 @@ public class Main {
 	boolean foundFirstExecLine = false;
 	boolean endReached = false;
 	boolean isConstant = false;
+	int blockStartForRecord = 0;
+	int lastLineToGenerateObjCode = 0;
 	String firstExecLine = "";
 	for (int i = 0; i < basicInstructions.size(); i++) {
 		Instruction instruction = basicInstructions.get(i);
 		int format = 3;
-		if (i + 1 < basicInstructions.size()){
-			pc = Integer.parseInt(basicInstructions.get(i+1).getLoc(), 16);
+		boolean pcFound = false;
+		boolean outOfBounds = false;
+		boolean useStatement = false;
+		int j = 1;
+		String nextLoc = "";
+		if (instruction.getMnemonic().equals("USE")) {
+			pcFound = true;
+			useStatement = true;
+			outOfBounds = true;
 		}
-		else pc = LOCCTR;
+		//calculate pc
+		while (!pcFound) {
+			if (i + j < basicInstructions.size()) {
+				if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
+					if (!(basicInstructions.get(i+j).getOperands().equals(""))) {
+						String prevBlock = blockName;
+						blockName = basicInstructions.get(i+j).getOperands();
+						boolean nextUseFound = false;
+						while (!nextUseFound) {
+							if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
+								if (basicInstructions.get(i+j).getOperands().equals("")) {
+									nextLoc = basicInstructions.get(i+j).getLoc();
+									pcFound = true;
+									nextUseFound = true;
+								}
+								else {
+									j++;
+								}
+							}
+							else if (basicInstructions.get(i+j).getMnemonic().equals("END")) {
+								pcFound = true;
+								nextUseFound = true;
+								String[] blkVals = BLKTAB.getEntry(prevBlock);
+								nextLoc = blkVals[2];
+								blockStartForRecord = Integer.parseInt(blkVals[1], 16);
+							}
+							else {
+								j++;
+							}
+						}
+					}
+					else {
+						boolean nextUseFound = false;
+						while (!nextUseFound) {
+							if (basicInstructions.get(i+j).getMnemonic().equals("USE")) {
+								if (basicInstructions.get(i+j).getOperands().equals(blockName)) {
+									nextLoc = basicInstructions.get(i+j).getLoc();
+									String[] blkVals = BLKTAB.getEntry(blockName);
+									blockStartForRecord = Integer.parseInt(blkVals[1], 16);
+									pcFound = true;
+									nextUseFound = true;
+								}
+								else {
+									j++;
+								}
+							}
+							else if (basicInstructions.get(i+j).getMnemonic().equals("END")) {
+								pcFound = true;
+								nextUseFound = true;
+								String[] blkVals = BLKTAB.getEntry(blockName);
+								nextLoc = blkVals[2];
+							}
+							else {
+								j++;
+							}
+						}
+						blockName = "default";
+					}
+				}
+				else {
+					nextLoc = basicInstructions.get(i + j).getLoc();
+					if (nextLoc.equals("")) {
+						j++;
+					}
+					else {
+						pcFound = true;
+					}
+	
+				}
+			}
+			else {
+				pcFound = true;
+				outOfBounds = true;
+			}
+			
+		}
+		if (!outOfBounds) {
+			pc = Integer.parseInt(nextLoc, 16);
+		}
+		else if (!useStatement){
+		       	pc = LOCCTR;
+		}
 		String opcode = instruction.getMnemonic();
 		String objCode = "";
 		if (opcode.equals("END")) {
-			tRecords.add(tRec);
+			if (tRec.length() > 7) {
+				tRecEndLen = pc + blockStartForRecord;	
+				String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
+				String finalTRec = "";
+				finalTRec += tRec.substring(0, 7);
+				finalTRec += tRecLen;
+				finalTRec += tRec.substring(7);	
+				tRecords.add(finalTRec);
+			}
 			eRec += firstExecLine;
 			endReached = true;
-			i = basicInstructions.size();
 		}
 		else if (opcode.equals("BYTE") || opcode.equals("WORD")) {
 			objCode = toMachineCodeConst(instruction.getOperands());
+		}
+		else if (opcode.equals("*")) {
+			String operand = instruction.getOperands().substring(1);
+			objCode = toMachineCodeConst(operand);
+
 		}
 		else {
 			//check for format 4, remove '+' if exists
@@ -215,13 +543,21 @@ public class Main {
 					isConstant = true;
 				}
 				else {
-					for (int j = 0; j < operands.length; j++){
+					for (j = 0; j < operands.length; j++){
 						if ((!(operands[j].equals("")))) {
 							String[] values = SYMTAB.getEntry(operands[j]);
 							if (values != null) {
+								if (values.length > 2) {
+									if (values[2].equals("A")) {
+										isConstant = true;
+									}
+									else isConstant = false;
+								}
+								else {
+									isConstant = false;
+								}
 								String operandAddrStr = values[0];
 								operandAddr[j] = Integer.parseInt(operandAddrStr, 16);
-								isConstant = false;
 							}
 							else {
 								try {
@@ -229,14 +565,37 @@ public class Main {
 									operandAddr[j] = Integer.parseInt(operandAddrStr);
 									isConstant = true;
 								} catch (NumberFormatException e) {
-									System.out.println("ERROR: Undefined Symbol '" + operands[j] + "'");
-									System.exit(0);
+									if (operands[j].charAt(0) == '=') {
+										String[] litVals = LITTAB.getEntry(operands[j].substring(1));
+										operandAddr[j] = Integer.parseInt(litVals[2], 16);
+									}
+									else if (operands[j].charAt(0) == '*') {
+										if (operands[j].length() > 1) {
+											char operation = operands[j].charAt(1);
+											if (operation == '+') {
+												String valueStr = operands[j].substring(2);
+												int value = Integer.parseInt(valueStr);
+												operandAddr[j] = value + Integer.parseInt(instruction.getLoc(), 16);
+											}
+											else {
+												String valueStr = operands[j].substring(2);
+												int value = Integer.parseInt(valueStr);
+												operandAddr[j] = Integer.parseInt(instruction.getLoc(), 16) - value;
+											}
+										}
+										else {
+											operandAddr[j] = Integer.parseInt(instruction.getLoc(), 16);
+										}
+									}
+									else {
+										System.out.println("ERROR: Undefined Symbol '" + operands[j] + "'");
+										System.exit(0);
+									}
 								}
 							}
 						}
 					}
 				}
-				
 				//check for indexed addressing
 				boolean isIndexed = false;
 				if (operands[1].equals("X")) {
@@ -246,7 +605,7 @@ public class Main {
 
 			}
 		}
-			//add to instruction, tRecord
+		//add to instruction, tRecord
 		if (!objCode.equals("")) {
 
 			instruction.setObjCode(objCode);
@@ -257,6 +616,7 @@ public class Main {
 				foundFirstExecLine = true;
 			}
 			if (Integer.parseInt(instruction.getLoc(), 16) - tRecStartLen >= 1000) {
+				tRecEndLen = Integer.parseInt(basicInstructions.get(lastLineToGenerateObjCode + 1).getLoc(), 16);
 				String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
 				String finalTRec = "";
 				finalTRec += tRec.substring(0, 7);
@@ -287,14 +647,46 @@ public class Main {
 				mRecords.add(mRec);
 				mRec = "M";
 			}
+			lastLineToGenerateObjCode = i;
 		}
-		
+		else if (instruction.getMnemonic().equals("USE")) {
+			if (instruction.getOperands().equals("")) {
+				if (tRec.length() > 7) {
+					tRecEndLen = pc + blockStartForRecord;	
+					String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
+					String finalTRec = "";
+					finalTRec += tRec.substring(0, 7);
+					finalTRec += tRecLen;
+					finalTRec += tRec.substring(7);	
+					tRecords.add(finalTRec);
+				}
+				String tRecStart = instruction.getLoc();
+				tRec = "T" + "00" + instruction.getLoc();
+				tRecStartLen = Integer.parseInt(instruction.getLoc(), 16);
+			}
+			else {
+				if (tRec.length() > 7) {
+					tRecEndLen = pc + blockStartForRecord;
+					String tRecLen = convertToHex(tRecEndLen - tRecStartLen, 2);
+					String finalTRec = "";
+					finalTRec += tRec.substring(0, 7);
+					finalTRec += tRecLen;
+					finalTRec += tRec.substring(7);	
+					tRecords.add(finalTRec);
+				}
+				String[] blkVals = BLKTAB.getEntry(instruction.getOperands());
+				int startOfBlock = Integer.parseInt(blkVals[1], 16);
+				String tRecStart = convertToHex(startOfBlock + Integer.parseInt(instruction.getLoc(), 16), 4);
+				tRec = "T" + "00" + tRecStart;
+				tRecStartLen = Integer.parseInt(tRecStart, 16);
+			}
+		}
 	}
 	if (!endReached) {
 		tRecords.add(tRec);
 		eRec += firstExecLine;
 	}
-	writer.writeIntermediateFile(basicInstructions, 2);
+	writer.writeIntermediateFilePass2(basicInstructions);
 
         ObjectProgram output = new ObjectProgram();
         output.Head = hRec;
@@ -306,10 +698,13 @@ public class Main {
     }
 
 	//Function that generates object code for a line of assembly.
-	//Specify the OPCODE as a string, the operand address (IN HEX!!!!),
+	//Specify the OPCODE as a string, the operand addresses (IN HEX!!!!),
 	//the format type (1-4), the addressing mode ("#" for immediate, "@" for indirect, anything else for simple),
-	//whether or not index register is used (true for yes, false for no), the PC counter value (ALSO HEX), 
-	//and the base register value (ALSO HEX). Will return a hex string with the object code.
+	//whether or not index register is used (true for yes, false for no), if the value
+        //is a constant or not(determines if relative addressing is used or not), 
+        //the PC counter value (ALSO HEX), and the base register value (ALSO HEX). 
+ 
+        //Will return a hex string with the object code.
 	public static String toMachineCode(String OPCODE, int operandAddr1, int operandAddr2, int format, String mode, boolean isIndexed, boolean isConstant, int PC, int BASE) {
 		//add first four bits of OPCODE to machineCode string
 		String machineCode = "";
@@ -393,16 +788,14 @@ public class Main {
 			else {
 				//PC relative
 				int disp = 0;
-				if (isIndexed){
-				       disp = (operandAddr1 + operandAddr2) - PC;	
-				}	
-				else disp = operandAddr1 - PC;
+				disp = operandAddr1 - PC;
 				//if disp is greater than 12 bits, use base relative
 				if (disp >= 2048 || disp <= -2048) {
 					disp = operandAddr1 - BASE;
 					//if disp still greater than 12 bits, throw error, quit assembly
 					if (disp >= 2048 || disp <= -2048) {
 						System.out.println("Error: Target Address outside 12 bit limit.");
+						System.out.println(OPCODE + " " + operandAddr1 + " " + PC + " " + BASE);
 						System.exit(0);
 						return machineCode;
 					}
@@ -479,6 +872,7 @@ public class Main {
 			return "";
 		}
 	}
+
 
 	//Function to convert a decimal integer to a binary string. Specify a length for how many digits 
 	//to include.

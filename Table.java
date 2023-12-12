@@ -30,6 +30,11 @@ public class Table {
 		return values;
 	}
 
+	//replace values for a certain key
+	public void editEntry(String key, String[] editValues) {
+		table.replace(key, editValues);
+	}
+
 	//debug function to print the table
 	public void printTable() {
 		table.forEach((k, v) -> {
