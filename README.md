@@ -54,3 +54,6 @@ H00000000039D
 T0000006D000375012C05000003A00D1BA1360FA25F9041A0153B2FF0
 E000000
 ```
+
+# Team
+This project was created for CS300 by Michael Moore, Prince Rajaruban, and Luis Martinez
