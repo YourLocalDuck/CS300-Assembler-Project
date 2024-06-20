@@ -52,7 +52,7 @@ This file will then be converted into a symbol table, and basicIntr.txt will loo
 0271    RESW    100
 ```
 
-Finally, the symbol table will be onverted into object code, which will look like below.
+Finally, the symbol table will be converted into object code, which will look like below.
 ```
 H00000000039D
 T0000006D000375012C05000003A00D1BA1360FA25F9041A0153B2FF0
