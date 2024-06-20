@@ -5,12 +5,16 @@ SIC-XE stands for Simplified Instructional Computer Extra Equipment, and is a hy
 
 # How to Compile
 To compile, make sure the JDK is installed on your machine, as well as optionally GNU make.
+
 If both are installed, run `make assembler` to compile.
+
 If GNU make is not installed, run `javac *.java`.
 
 # How to run
 Place input files into the base directory. For examples of input files, refer to the txt files in the directory by default, namely `basic.txt`, `control_section.txt`, `functions.txt`, `literals.txt`, `macros.txt`, `opcodes.txt`, `prog_blocks.txt`, `registers.txt`. The instructions in the input files must be in the SIC/XE instruction set.
+
 From here, with make, run `make run` to execute the project and convert the input file into a symbol table, and then object code.
+
 Without make, run `java Main` to do the same.
 The program will then prompt for a file name, which must be given without the extension. It will then generate {Filename}Intr.txt as the symbol table, and {filename}Obj.txt as the object code.
 
